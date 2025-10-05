@@ -1136,23 +1136,23 @@ function renderReceiptPreview(){
     ${c?.phone?`<div style="font-size:11px;text-align:right;margin-top:2px"><strong>الهاتف:</strong> ${c.phone}</div>`:''}
   </div>
 
-  <!-- Consumption table -->
+  <!-- Consumption table (prev first, removed total column) -->
   <div style="margin-bottom:6px">
     <table style="width:100%;border-collapse:collapse;font-size:10px;">
       <thead>
         <tr>
-          <th style="padding:3px 6px;border:1px solid #444">العداد</th>
+          <th style="padding:3px 6px;border:1px solid #444">العداد السابق</th>
+          <th style="padding:3px 6px;border:1px solid #444">العداد الحالي</th>
           <th style="padding:3px 6px;border:1px solid #444">الاستهلاك (ك.و.س)</th>
           <th style="padding:3px 6px;border:1px solid #444">سعر الكيلو</th>
-          <th style="padding:3px 6px;border:1px solid #444">المجموع</th>
         </tr>
       </thead>
       <tbody>
         <tr>
           <td style="padding:3px 6px;border:1px solid #444;text-align:right;direction:ltr" lang="en">${Number(prev).toLocaleString('en-US')}</td>
+          <td style="padding:3px 6px;border:1px solid #444;text-align:right;direction:ltr" lang="en">${Number(curr).toLocaleString('en-US')}</td>
           <td style="padding:3px 6px;border:1px solid #444;text-align:right;direction:ltr" lang="en">${Number(usage).toLocaleString('en-US')}</td>
           <td style="padding:3px 6px;border:1px solid #444;text-align:right;direction:ltr" lang="en">${formattedPrice} USD</td>
-          <td style="padding:3px 6px;border:1px solid #444;text-align:right;direction:ltr" lang="en">${Number(consumptionValue).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})} USD</td>
         </tr>
       </tbody>
     </table>
@@ -1531,8 +1531,10 @@ async function printInvoice(invoiceId){
 
     // Use stored values directly (do not re-run pricing logic)
     const cName = inv.customerName || '';
-    const prev = Number(inv.prev||0);
     const curr = Number(inv.curr||0);
+    // determine previous reading: prefer stored field, fallback to curr - usage when available
+    const prevRaw = (inv.prev != null) ? inv.prev : (inv.previous != null ? inv.previous : (inv.prevReading != null ? inv.prevReading : null));
+    const prev = prevRaw != null ? Number(prevRaw) : (inv.curr != null && inv.usage != null ? Number(inv.curr) - Number(inv.usage) : 0);
     const usage = Number(inv.usage || inv.consumptionKwh || 0);
     // price may be stored in different fields; prefer explicit per-currency fields
     const priceUsd = inv.pricePerKwhUsd ?? inv.price_kwh ?? null;
@@ -1553,70 +1555,49 @@ async function printInvoice(invoiceId){
     const formattedTotalUSD = totalUSD != null ? Number(totalUSD).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) : '—';
     const formattedTotalLBP = totalLBP != null ? Number(totalLBP).toLocaleString('en-US') : '—';
 
+    // Instead of building HTML here, reuse the on-screen preview generator
+    // so printed output from History matches the preview exactly.
     const consumptionValue = (priceUsd != null ? Number(priceUsd) : 0) * usage;
-    const receiptHtml = `
-    <!-- Header -->
-    <div style="text-align:center;margin-bottom:8px;border-bottom:1px solid #333;padding-bottom:6px">
-      <div style="font-weight:800;font-size:15px;">${settings.subscriptionName||'اشتراك الكهرباء'}</div>
-      <div style="font-size:10px;color:#666;margin-top:2px">إيصال سداد</div>
-      <div style="font-size:9px;color:#888;margin-top:2px">${inv.date} • رقم: ${inv.id}</div>
-    </div>
 
-    <!-- Customer compact -->
-    <div style="margin-bottom:6px;padding:2px 0;background:transparent;">
-      <div style="font-size:11px;text-align:right"><strong>الاسم:</strong> ${cName||'—'}</div>
-      ${inv.customerPhone?`<div style="font-size:11px;text-align:right;margin-top:2px"><strong>الهاتف:</strong> ${inv.customerPhone}</div>`:''}
-    </div>
+    // backup form state
+    const backup = {};
+    const fields = ['#inv_prev','#inv_curr','#inv_price_kwh','#inv_monthly','#inv_extra','#inv_extra_currency','#inv_extra_note','#inv_discount','#inv_base_currency','#inv_date','#inv_customer'];
+    fields.forEach(k=>{ const el = qs(k); backup[k]= el ? el.value : null; });
+    const backupSelected = (typeof selectedCustomerIndex !== 'undefined') ? selectedCustomerIndex : -1;
 
-    <!-- Consumption table -->
-    <div style="margin-bottom:6px">
-      <table style="width:100%;border-collapse:collapse;font-size:10px;">
-        <thead>
-          <tr>
-            <th style="padding:3px 6px;border:1px solid #444">العداد</th>
-            <th style="padding:3px 6px;border:1px solid #444">الاستهلاك (ك.و.س)</th>
-            <th style="padding:3px 6px;border:1px solid #444">سعر الكيلو</th>
-            <th style="padding:3px 6px;border:1px solid #444">المجموع</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td style="padding:3px 6px;border:1px solid #444;text-align:right;direction:ltr" lang="en">${Number(prev).toLocaleString('en-US')}</td>
-            <td style="padding:3px 6px;border:1px solid #444;text-align:right;direction:ltr" lang="en">${Number(usage).toLocaleString('en-US')}</td>
-            <td style="padding:3px 6px;border:1px solid #444;text-align:right;direction:ltr" lang="en">${displayPriceLabel}</td>
-            <td style="padding:3px 6px;border:1px solid #444;text-align:right;direction:ltr" lang="en">${(consumptionValue > 0 ? Number(consumptionValue).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) + ' USD' : '—')}</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+    // ensure customer entry exists in customers[] so renderReceiptPreview shows correct name
+    let addedTempCustomer = false; let custIndex = customers.findIndex(c=> String(c.id) === String(inv.customerId));
+    if(custIndex === -1){ customers.push({ id: inv.customerId || ('_tmp_'+Math.random().toString(36).slice(2)), name: inv.customerName||'', phone: inv.customerPhone||'' }); custIndex = customers.length-1; addedTempCustomer = true; }
 
-    <!-- Fees row: المقطوعة | دفعات إضافية | خصم -->
-    <div style="margin-bottom:6px">
-      <table style="width:100%;border-collapse:collapse;font-size:10px;">
-        <tr>
-          <th style="padding:3px 6px;border:1px solid #444">المقطوعة</th>
-          <th style="padding:3px 6px;border:1px solid #444">دفعات إضافية</th>
-          <th style="padding:3px 6px;border:1px solid #444">خصم</th>
-        </tr>
-        <tr>
-          <td style="padding:3px 6px;border:1px solid #444;text-align:right;direction:ltr" lang="en">${Number(monthly).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})} ${inv.pricingMode||inv.base_currency||'USD'}</td>
-          <td style="padding:3px 6px;border:1px solid #444;text-align:right;direction:ltr" lang="en">
-            ${Number(extraTotal||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})} ${extrasArr[0]?.currency || inv.extra_currency || 'USD'}
-            ${ (extrasArr[0]?.label || inv.extra_note) ? `<div style="font-size:9px;color:#444;margin-top:3px;text-align:right;direction:rtl">ملاحظة: ${extrasArr[0]?.label || inv.extra_note}</div>` : '' }
-          </td>
-          <td style="padding:3px 6px;border:1px solid #444;text-align:right;direction:ltr" lang="en">${Number(discount||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})} ${inv.pricingMode||inv.base_currency||'USD'}</td>
-        </tr>
-      </table>
-    </div>
+    try{
+      // populate form with invoice values
+      if(qs('#inv_prev')) qs('#inv_prev').value = inv.prev != null ? inv.prev : '';
+      if(qs('#inv_curr')) qs('#inv_curr').value = inv.curr != null ? inv.curr : '';
+      if(qs('#inv_price_kwh')) qs('#inv_price_kwh').value = priceUsd != null ? priceUsd : (inv.price_kwh != null ? inv.price_kwh : qs('#inv_price_kwh').value);
+      if(qs('#inv_monthly')) qs('#inv_monthly').value = monthly || '';
+      if(qs('#inv_extra')) qs('#inv_extra').value = extraTotal || 0;
+      if(qs('#inv_extra_currency')) qs('#inv_extra_currency').value = extrasArr[0]?.currency || inv.extra_currency || qs('#inv_extra_currency').value;
+      if(qs('#inv_extra_note')) qs('#inv_extra_note').value = extrasArr[0]?.label || inv.extra_note || '';
+      if(qs('#inv_discount')) qs('#inv_discount').value = inv.discount || 0;
+      if(qs('#inv_base_currency')) qs('#inv_base_currency').value = inv.pricingMode || inv.base_currency || qs('#inv_base_currency').value;
+      if(qs('#inv_date')) qs('#inv_date').value = inv.date || qs('#inv_date').value;
+      if(qs('#inv_customer')) qs('#inv_customer').value = custIndex;
+      selectedCustomerIndex = custIndex;
 
-    <!-- Total -->
-    <div style="margin-bottom:6px;padding:6px;border:1px solid #444;border-radius:4px;background:#fff">
-      <div style="text-align:right;font-weight:800;font-size:13px;">الإجمالي: <span style="direction:ltr" lang="en">LBP ${formattedTotalLBP}</span>  / <span style="direction:ltr" lang="en">USD ${formattedTotalUSD}</span></div>
-    </div>
-  `;
+      // regenerate preview and capture its HTML
+      if(typeof renderReceiptPreview === 'function') renderReceiptPreview();
+      const receiptHtml = qs('#receipt').innerHTML;
 
-    // open standardized print window
-    openPrintWindow(receiptHtml);
+      // open print window with the preview HTML
+      openPrintWindow(receiptHtml);
+    }finally{
+      // restore backed-up form state
+      fields.forEach(k=>{ const el = qs(k); if(el && backup[k] != null) el.value = backup[k]; });
+      selectedCustomerIndex = backupSelected;
+      if(addedTempCustomer) customers.splice(custIndex,1);
+      // refresh preview to original state
+      if(typeof renderReceiptPreview === 'function') renderReceiptPreview();
+    }
   } catch (err) {
     console.error('printInvoice error:', err);
     alert('تعذّر فتح الوصل للطباعة: ' + (err.message || err));

@@ -1,0 +1,1722 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>نظام إدارة اشتراكات الكهرباء</title>
+<style>
+  :root{
+    --primary:#9b1c1c;
+    --accent:#d4a017;
+    --bg:#fafafa;
+    --card:#ffffff;
+    --muted:#666;
+    --ok:#0a7d34;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#111}
+  header{position:sticky;top:0;background:var(--primary);color:#fff;padding:12px 16px;z-index:10}
+  header h1{margin:0;font-size:18px}
+  .tabs{display:flex;gap:8px;overflow:auto;padding:8px;background:#fff;border-bottom:1px solid #eee;position:sticky;top:52px;z-index:9}
+  .tab-btn{flex:1;white-space:nowrap;border:1px solid #eee;background:#fff;border-radius:10px;padding:10px 12px;font-weight:600}
+  .tab-btn.active{background:var(--primary);color:#fff;border-color:var(--primary)}
+  main{padding:12px;max-width:920px;margin-inline:auto}
+  .card{background:var(--card);border-radius:14px;padding:14px;margin:10px 0;border:1px solid #eee;box-shadow:0 1px 0 rgba(0,0,0,.03)}
+  .grid{display:grid;gap:10px}
+  @media(min-width:700px){.grid.cols-2{grid-template-columns:1fr 1fr} .grid.cols-3{grid-template-columns:repeat(3,1fr)}}
+  label{display:block;font-size:13px;margin-bottom:6px;color:#333}
+  input,select,textarea{width:100%;padding:10px;border:1px solid #ddd;border-radius:10px;background:#fff;font-size:14px}
+  textarea{min-height:70px;resize:vertical}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .btn{border:none;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer}
+  .btn.primary{background:var(--primary);color:#fff}
+  .btn.ghost{background:#fff;border:1px solid #ddd}
+  .btn.ok{background:var(--ok);color:#fff}
+  .muted{color:var(--muted);font-size:12px}
+  table{width:100%;border-collapse:collapse}
+  th,td{border-bottom:1px solid #eee;text-align:right;padding:8px}
+  th{background:#faf7f0}
+  .total{font-weight:800}
+  .pill{display:inline-block;padding:4px 8px;border-radius:999px;background:#f3f3f3;font-size:12px}
+  .section-title{margin:6px 0 2px;font-weight:800;color:#333}
+  .print-area{background:#fff;color:#000}
+  .hide-print{display:block}
+  .customer-option:hover{background:#f5f5f5}
+        #customer_dropdown{border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.1)}
+
+        /* Receipt visual improvements: clearer, bolder fonts */
+        #printArea, #receipt, #receipt * {
+            color: #000 !important;
+            font-family: Arial, Helvetica, sans-serif !important;
+        }
+
+        /* labels above values */
+        #receipt .receipt-label { font-size:12px; color:#333; font-weight:700; margin-bottom:4px; }
+        #receipt .receipt-value { font-size:14px; font-weight:800; direction:ltr; text-align:left; font-variant-numeric: tabular-nums; font-family: 'Courier New', monospace !important; }
+        #receipt .receipt-middle { text-align:center; font-size:13px; font-weight:700; }
+        #receipt .receipt-total { text-align:center; font-size:16px; font-weight:900; }
+
+        /* Ensure print uses same bold/clear fonts */
+        @media print {
+          #printArea, #receipt { font-family: Arial, Helvetica, sans-serif !important; color:#000 !important; }
+          #receipt .receipt-value, #receipt .receipt-total { font-family: 'Courier New', monospace !important; }
+        }
+  @media print {
+    @page { 
+      size: 80mm auto; 
+      margin: 0; 
+    }
+
+    /* أظهر تبويب الفاتورة أثناء الطباعة حتى لو كان مخفي */
+    #invoice { 
+      display: block !important; 
+    }
+
+    /* أخفي كل شيء */
+    body * { 
+      visibility: hidden !important; 
+    }
+
+    /* أظهر فقط منطقة الفاتورة السفلي */
+    #printArea, #printArea * { 
+      visibility: visible !important; 
+    }
+
+    /* اخفِ عناصر الفاتورة غير المرغوبة فوق (النموذج/الأزرار/الكاردات) */
+    #invoice .grid,
+    #invoice .row,
+    #invoice .card:not(#printArea),
+    header, .tabs, .hide-print, .tab:not(#invoice) {
+      display: none !important;
+    }
+
+    /* ضبط مساحة الفاتورة للـ POS */
+    #printArea {
+      position: absolute; 
+      left: 0; 
+      top: 0;
+      width: 72mm;               /* ضمن حواف رول 80mm */
+      padding: 6mm 4mm; 
+      margin: 0;
+      font-size: 12px; 
+      line-height: 1.35;
+    }
+
+    #printArea table { 
+      width: 100%; 
+      border-collapse: collapse; 
+      margin-bottom: 8px;
+    }
+    
+    #printArea th, #printArea td { 
+      border: none; 
+      padding: 3px 4px; 
+      text-align: right; 
+      font-size: 10px;
+    }
+    
+    #printArea th { 
+      background: #f0f0f0 !important;
+      font-weight: 600 !important;
+    }
+    
+    #printArea .total { 
+      font-weight: 800; 
+      font-size: 12px; 
+    }
+    
+    #printArea tr, #printArea td { 
+      page-break-inside: avoid; 
+    }
+    
+    
+    /* تحسين الأقسام */
+    #printArea div[style*="background:#f8f9fa"] {
+      background: #f0f0f0 !important;
+      padding: 4px !important;
+      margin: 4px 0 !important;
+    }
+    
+    #printArea div[style*="border:2px solid #333"] {
+      border: 1px solid #333 !important;
+      padding: 6px !important;
+      margin: 6px 0 !important;
+    }
+    
+    /* تحسين الرسالة السفلية */
+    #printArea div[style*="background:#fff3cd"] {
+      background: #f9f9f9 !important;
+      border: 1px solid #ddd !important;
+      padding: 6px !important;
+      font-size: 9px !important;
+    }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="appTitle">نظام إدارة اشتراكات الكهرباء</h1>
+</header>
+
+<div class="tabs hide-print">
+  <button class="tab-btn active" data-tab="customers">الزبائن</button>
+  <button class="tab-btn" data-tab="invoice">إصدار إيصال</button>
+  <button class="tab-btn" data-tab="history">السجل</button>
+  <button class="tab-btn" data-tab="reports">التقارير</button>
+  <button class="tab-btn" data-tab="settings">الإعدادات</button>
+</div>
+
+<main>
+  <!-- Customers -->
+  <section id="customers" class="tab card">
+    <div class="row" style="justify-content:space-between">
+      <h2>إدارة الزبائن</h2>
+      <span class="muted">أضف الزبون مع سعر الكيلو الخاص والمقطوعة</span>
+    </div>
+    <div class="grid cols-2">
+      <div>
+        <label>اسم الزبون</label>
+        <input id="c_name" placeholder="مثلًا: أبو علي">
+      </div>
+      <div>
+        <label>رقم الهاتف</label>
+        <input id="c_phone" placeholder="03 000 000">
+      </div>
+      <div>
+        <label>العنوان</label>
+        <input id="c_address" placeholder="الحي - الشارع - تفاصيل">
+      </div>
+      <div>
+        <label>المقطوعة الشهرية</label>
+        <input id="c_monthly" type="number" min="0" step="0.01" placeholder="0">
+      </div>
+      <div>
+        <label>سعر الكيلو (خـاص)</label>
+        <input id="c_price_kwh" type="number" min="0" step="0.001" placeholder="0">
+      </div>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <button class="btn primary" id="btnAddCustomer">إضافة زبون</button>
+      <input id="c_search" class="hide-print" placeholder="بحث بالاسم أو الهاتف" style="flex:1">
+    </div>
+    <div class="card">
+      <table id="customersTable">
+        <thead>
+          <tr><th>الاسم</th><th>الهاتف</th><th>العنوان</th><th>المقطوعة</th><th>سعر الكيلو</th><th class="hide-print">تحكم</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+  
+  <!-- Delete / Import / Export logic -->
+  <div id="dataManagementModals" style="display:none"></div>
+  <script>document.addEventListener('DOMContentLoaded', function(){
+  // Export Data
+  qs('#btnExportData').onclick = async ()=>{
+    try{
+      const customers = await DB.load('customers', []);
+      const invoices = await DB.load('invoices', []);
+      const expenses = await DB.getExpenses(new Date().toISOString().slice(0,7));
+      const payload = { customers, invoices, expenses, exportedAt: new Date().toISOString() };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `backup-${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.json`;
+      document.body.appendChild(a); a.click(); a.remove();
+      alert('تم إنشاء ملف النسخة الاحتياطية');
+    }catch(e){ console.error(e); alert('فشل التصدير: '+e.message); }
+  };
+
+  // Import Data
+  qs('#btnImportData').onclick = ()=> qs('#importFileInput').click();
+  qs('#importFileInput').onchange = async (ev)=>{
+    const file = ev.target.files && ev.target.files[0];
+    if(!file) return; 
+    try{
+      const text = await file.text();
+      const json = JSON.parse(text);
+      const counts = { customers: (json.customers||[]).length, invoices: (json.invoices||[]).length, expenses: (json.expenses||[]).length };
+      if(!confirm(`سيتم استيراد ${counts.customers} زبون، ${counts.invoices} وصل، ${counts.expenses} مصروف. متابعة؟`)) return;
+      // import: add with auto ids
+      if(DB.useFirebase){
+        // import customers
+        for(const c of (json.customers||[])){
+          await window.firebase.addDoc(window.firebase.collection(window.firebase.db, 'tenants/default/customers'), c);
+        }
+        for(const inv of (json.invoices||[])){
+          await window.firebase.addDoc(window.firebase.collection(window.firebase.db, 'tenants/default/invoices'), inv);
+        }
+        for(const ex of (json.expenses||[])){
+          await window.firebase.addDoc(window.firebase.collection(window.firebase.db, 'tenants/default/expenses'), ex);
+        }
+        // log
+        const log = { action:'import', counts, by: (window.currentUser&&window.currentUser.uid)||null, at: window.firebase.serverTimestamp() };
+        await window.firebase.addDoc(window.firebase.collection(window.firebase.db, 'tenants/default/adminLogs'), log);
+      } else {
+        // local
+        const localCustomers = LocalDB.load('customers',[]).concat(json.customers||[]);
+        LocalDB.save('customers', localCustomers);
+        const localInvoices = LocalDB.load('invoices',[]).concat(json.invoices||[]);
+        LocalDB.save('invoices', localInvoices);
+        const localExpenses = LocalDB.load('expenses',{});
+        const month = new Date().toISOString().slice(0,7);
+        localExpenses[month] = (localExpenses[month]||[]).concat(json.expenses||[]);
+        LocalDB.save('expenses', localExpenses);
+        // local log
+        const logs = LocalDB.load('adminLogs',[]); logs.push({ action:'import', counts, by:'local', at:new Date().toISOString() }); LocalDB.save('adminLogs', logs);
+      }
+      alert('تم الاستيراد');
+      await reloadInvoices(); renderCustomers();
+    }catch(e){ console.error(e); alert('صيغة غير مدعومة أو فشل القراءة'); }
+  };
+
+  // Delete Data (safe)
+  qs('#btnDeleteData').onclick = async ()=>{
+    const pin = prompt('أدخل كلمة السر للحذف');
+    if(pin !== '00'){ alert('كلمة السر غير صحيحة'); return; }
+    if(!confirm('هل أنت متأكد من حذف كل البيانات؟ لا يمكن التراجع.')) return;
+    const btn = qs('#btnDeleteData'); btn.disabled = true; btn.textContent='جارٍ الحذف...';
+    try{
+      if(DB.useFirebase){
+        // delete invoices, customers, expenses (caution: not settings)
+        const invs = await window.firebase.getDocs(window.firebase.query(window.firebase.collection(window.firebase.db, 'tenants/default/invoices')));
+        for(const d of invs.docs) await window.firebase.deleteDoc(window.firebase.doc(window.firebase.db, 'tenants/default/invoices', d.id));
+        const custs = await window.firebase.getDocs(window.firebase.query(window.firebase.collection(window.firebase.db, 'tenants/default/customers')));
+        for(const d of custs.docs) await window.firebase.deleteDoc(window.firebase.doc(window.firebase.db, 'tenants/default/customers', d.id));
+        const exs = await window.firebase.getDocs(window.firebase.query(window.firebase.collection(window.firebase.db, 'tenants/default/expenses')));
+        for(const d of exs.docs) await window.firebase.deleteDoc(window.firebase.doc(window.firebase.db, 'tenants/default/expenses', d.id));
+        await window.firebase.addDoc(window.firebase.collection(window.firebase.db, 'tenants/default/adminLogs'), { action:'delete_all', by:(window.currentUser&&window.currentUser.uid)||null, at: window.firebase.serverTimestamp() });
+      } else {
+        LocalDB.save('customers', []);
+        LocalDB.save('invoices', []);
+        LocalDB.save('expenses', {});
+        const logs = LocalDB.load('adminLogs',[]); logs.push({ action:'delete_all', by:'local', at:new Date().toISOString() }); LocalDB.save('adminLogs', logs);
+      }
+      await reloadInvoices(); renderCustomers(); alert('تم حذف البيانات بنجاح');
+    }catch(e){ console.error(e); alert('فشل الحذف: '+e.message); }
+    finally{ btn.disabled=false; btn.textContent='حذف البيانات'; }
+  };
+  });</script>
+
+
+  <!-- Invoice -->
+  <section id="invoice" class="tab card" style="display:none">
+    <h2>إنشاء إيصال</h2>
+    <div class="grid cols-3">
+      <div>
+        <label>اختر الزبون</label>
+        <input id="inv_customer_search" placeholder="ابحث عن الزبون..." autocomplete="off">
+        <select id="inv_customer" style="display:none"></select>
+        <div id="customer_dropdown" style="display:none;position:absolute;background:#fff;border:1px solid #ddd;max-height:200px;overflow-y:auto;z-index:1000;width:100%"></div>
+      </div>
+      <div>
+        <label>العداد السابق</label>
+        <input id="inv_prev" type="number" step="0.001" placeholder="0">
+      </div>
+      <div>
+        <label>العداد الحالي</label>
+        <input id="inv_curr" type="number" step="0.001" placeholder="0">
+      </div>
+
+      <div>
+        <label>الاستهلاك (كيلو واط)</label>
+        <input id="inv_usage" type="number" step="0.001" placeholder="0" disabled>
+      </div>
+      <div>
+        <label>سعر الكيلو</label>
+        <input id="inv_price_kwh" type="number" step="0.001" placeholder="0">
+      </div>
+      <div>
+        <label>المقطوعة الشهرية</label>
+        <input id="inv_monthly" type="number" step="0.01" placeholder="0">
+      </div>
+
+      <div>
+        <label>دفعات إضافية</label>
+        <input id="inv_extra" type="number" step="0.01" placeholder="0">
+      </div>
+      <div>
+        <label>عملة الدفعات</label>
+        <select id="inv_extra_currency">
+          <option value="USD">دولار</option>
+          <option value="LBP">لبناني</option>
+        </select>
+      </div>
+      <div>
+        <label>ملاحظة الدفعة <span style="color:red">*</span></label>
+        <input id="inv_extra_note" placeholder="مثال: صيانة/قسط سابق" required>
+      </div>
+
+      <div>
+        <label>خصم</label>
+        <input id="inv_discount" type="number" step="0.01" placeholder="0">
+      </div>
+      <div>
+        <label>العملة الأساسية للإيصال</label>
+        <select id="inv_base_currency">
+          <option value="USD">دولار</option>
+          <option value="LBP">لبناني</option>
+        </select>
+      </div>
+      <div>
+        <label>تاريخ الإيصال</label>
+        <input id="inv_date" type="date">
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="row">
+        <div><span class="pill">المجموع (USD):</span> <strong id="sum_usd">0</strong></div>
+        <div><span class="pill">المجموع (LBP):</span> <strong id="sum_lbp">0</strong></div>
+      </div>
+      <div class="muted">يتم التحويل حسب سعر الصرف من الإعدادات</div>
+    </div>
+
+    <div class="row">
+      <button class="btn ok" id="btnSaveInvoice">حفظ وطباعة</button>
+      <button class="btn ghost" id="btnPreview">معاينة طباعة</button>
+      <button class="btn ghost" id="btnTestCalc">اختبار الحساب</button>
+    </div>
+
+    <div id="printArea" class="card print-area" style="margin-top:12px">
+      <div id="receipt">
+        <!-- Filled dynamically -->
+      </div>
+      <div class="hide-print" style="margin-top:6px">
+        <button class="btn primary" onclick="printReceipt()">طباعة</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- History -->
+  <section id="history" class="tab card" style="display:none">
+    <h2>السجل</h2>
+    <div class="row">
+      <input id="h_search" placeholder="ابحث بالزبون أو رقم الفاتورة" style="flex:1">
+      <input id="h_month" type="month">
+    </div>
+    <div class="card">
+      <table id="historyTable">
+        <thead>
+          <tr><th>#</th><th>التاريخ</th><th>الزبون</th><th>الاستهلاك</th><th>الإجمالي USD</th><th>الإجمالي LBP</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Reports -->
+  <section id="reports" class="tab card" style="display:none">
+    <h2>التقارير الشهرية</h2>
+    <div class="row">
+      <input id="r_month" type="month">
+      <button class="btn primary" id="btnRunReport">عرض التقرير</button>
+    </div>
+    <div id="reportArea" class="card">
+      <div class="grid cols-3">
+        <div><div class="section-title">مجموع الكيلو واط</div><div id="rep_kwh">0</div></div>
+        <div><div class="section-title">الإجمالي (USD)</div><div id="rep_usd">0</div></div>
+        <div><div class="section-title">الإجمالي (LBP)</div><div id="rep_lbp">0</div></div>
+      </div>
+
+      <h3 style="margin-top:16px">المصاريف</h3>
+      <div class="grid cols-3">
+        <input id="exp_amount" type="number" step="0.01" placeholder="قيمة المصروف">
+        <select id="exp_currency"><option value="USD">دولار</option><option value="LBP">لبناني</option></select>
+        <input id="exp_note" placeholder="ملاحظة">
+      </div>
+      <div class="row" style="margin-top:6px">
+        <button class="btn ghost" id="btnAddExpense">إضافة مصروف</button>
+        <div class="muted">المصاريف تُسجّل للشهر المحدّد</div>
+      </div>
+      <div class="card">
+        <table id="expensesTable">
+          <thead><tr><th>القيمة</th><th>العملة</th><th>ملاحظة</th><th>تحكم</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <div class="grid cols-3">
+          <div><div class="section-title">إجمالي المصاريف (USD)</div><div id="rep_exp_usd">0</div></div>
+          <div><div class="section-title">إجمالي المصاريف (LBP)</div><div id="rep_exp_lbp">0</div></div>
+          <div><div class="section-title">صافي الربح</div><div id="rep_profit">0</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Settings -->
+  <section id="settings" class="tab card" style="display:none">
+    <h2>الإعدادات</h2>
+    <div class="grid cols-2">
+      <div>
+        <label>اسم الاشتراك الظاهر على الإيصال</label>
+        <input id="s_subscription" placeholder="مثال: اشتراك كهرباء الضيعة">
+      </div>
+      <div>
+        <label>سعر صرف الدولار (LBP لكل 1 USD)</label>
+        <input id="s_rate" type="number" step="1" min="1" placeholder="90000">
+      </div>
+      <div>
+        <label>سعر الكيلو الافتراضي (USD)</label>
+        <input id="s_price_usd" type="number" step="0.001" placeholder="0.25">
+      </div>
+      <div>
+        <label>سعر الكيلو الافتراضي (LBP)</label>
+        <input id="s_price_lbp" type="number" step="1" placeholder="22500">
+      </div>
+      <div>
+        <label>رمز مدير (اختياري)</label>
+        <input id="s_admin_pin" type="password" placeholder="PIN">
+      </div>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <button class="btn primary" id="btnSaveSettings">حفظ الإعدادات</button>
+    </div>
+    <hr />
+    <h3>إدارة البيانات</h3>
+    <div class="row" style="gap:8px;align-items:center">
+      <button class="btn ghost" id="btnExportData">تصدير البيانات</button>
+      <button class="btn ghost" id="btnImportData">استيراد بيانات</button>
+      <button class="btn" id="btnDeleteData" style="background:#c62828;color:#fff">حذف البيانات</button>
+      <input type="file" id="importFileInput" accept="application/json" style="display:none" />
+    </div>
+    <div style="margin-top:6px;color:#666;font-size:13px">ننصح بأخذ Export قبل أي عملية حذف.</div>
+  </section>
+</main>
+
+<!-- Firebase SDK -->
+<script type="module">
+  import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+import { getFirestore, connectFirestoreEmulator, collection, doc, getDoc, setDoc, getDocs, addDoc, deleteDoc, query, where, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+  import { getAuth, connectAuthEmulator } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+  
+  // Firebase configuration
+  const firebaseConfig = {
+    apiKey: "AIzaSyAiNk6EdKxF8bqrsCXsB2VWUXDaZCHVWRg",
+    authDomain: "esht-a051b.firebaseapp.com",
+    projectId: "esht-a051b",
+    storageBucket: "esht-a051b.firebasestorage.app",
+    messagingSenderId: "865178645419",
+    appId: "1:865178645419:web:7367edee5324ed9b0618ee",
+    measurementId: "G-WR9DBL2PED"
+  };
+  
+  // Initialize Firebase
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  const auth = getAuth(app);
+  
+  // Development mode - connect to emulators
+  if (window.location.hostname === 'localhost') {
+    try {
+      connectFirestoreEmulator(db, 'localhost', 8080);
+      connectAuthEmulator(auth, 'http://localhost:9099');
+    } catch (e) {
+      console.log('Emulators already connected or not available');
+    }
+  }
+  
+  // Make Firebase available globally
+  window.firebase = { app, db, auth, collection, doc, getDoc, setDoc, getDocs, addDoc, deleteDoc, query, where, serverTimestamp };
+</script>
+
+<script>
+// ------- Firebase Storage Helpers -------
+const FirebaseDB = {
+  async init() {
+    try {
+      // Test Firebase connection
+      await this.getSettings();
+      console.log('Firebase connected successfully');
+      return true;
+    } catch (error) {
+      console.log('Firebase not available, using localStorage');
+      return false;
+    }
+  },
+
+  async getSettings() {
+    try {
+      const docRef = window.firebase.doc(window.firebase.db, 'tenants/default');
+      const docSnap = await window.firebase.getDoc(docRef);
+      if (docSnap.exists()) {
+        return docSnap.data();
+      } else {
+        // Return default settings
+        return { 
+          title: 'نظام إدارة اشتراكات الكهرباء', 
+          subscriptionName: '', 
+          rate: 90000, 
+          priceUSD: 0.25, 
+          priceLBP: 22500, 
+          adminPIN: '' 
+        };
+      }
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  async saveSettings(settings) {
+    try {
+      const docRef = window.firebase.doc(window.firebase.db, 'tenants/default');
+      await window.firebase.setDoc(docRef, settings);
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  async getCustomers() {
+    try {
+      const q = window.firebase.query(window.firebase.collection(window.firebase.db, 'tenants/default/customers'));
+      const querySnapshot = await window.firebase.getDocs(q);
+      return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  async saveCustomer(customer) {
+    try {
+      const docRef = await window.firebase.addDoc(window.firebase.collection(window.firebase.db, 'tenants/default/customers'), customer);
+      return docRef.id;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  async deleteCustomer(customerId) {
+    try {
+      await window.firebase.deleteDoc(window.firebase.doc(window.firebase.db, 'tenants/default/customers', customerId));
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  async getInvoices() {
+    try {
+      const q = window.firebase.query(window.firebase.collection(window.firebase.db, 'tenants/default/invoices'));
+      const querySnapshot = await window.firebase.getDocs(q);
+      return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  async getInvoice(invoiceId) {
+    try {
+      const docRef = window.firebase.doc(window.firebase.db, 'tenants/default/invoices', invoiceId);
+      const docSnap = await window.firebase.getDoc(docRef);
+      if (docSnap.exists()) return { id: docSnap.id, ...docSnap.data() };
+      return null;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  async saveInvoice(invoice) {
+    try {
+      // If caller provided an id (invoice number) use setDoc to preserve it, otherwise addDoc
+      if (invoice && invoice.id) {
+        const docRef = window.firebase.doc(window.firebase.db, 'tenants/default/invoices', invoice.id);
+        await window.firebase.setDoc(docRef, invoice);
+        return invoice.id;
+      }
+      const docRef = await window.firebase.addDoc(window.firebase.collection(window.firebase.db, 'tenants/default/invoices'), invoice);
+      return docRef.id;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  async getExpenses(period) {
+    try {
+      const q = window.firebase.query(
+        window.firebase.collection(window.firebase.db, 'tenants/default/expenses'),
+        window.firebase.where('period', '==', period)
+      );
+      const querySnapshot = await window.firebase.getDocs(q);
+      return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  async saveExpense(expense) {
+    try {
+      const docRef = await window.firebase.addDoc(window.firebase.collection(window.firebase.db, 'tenants/default/expenses'), expense);
+      return docRef.id;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  async deleteExpense(expenseId) {
+    try {
+      await window.firebase.deleteDoc(window.firebase.doc(window.firebase.db, 'tenants/default/expenses', expenseId));
+    } catch (error) {
+      throw error;
+    }
+  }
+};
+
+// LocalStorage fallback
+const LocalDB = {
+  load(key, fallback) { 
+    try { 
+      return JSON.parse(localStorage.getItem(key) || JSON.stringify(fallback)); 
+    } catch(e) { 
+      return fallback; 
+    } 
+  },
+  save(key, val) { 
+    localStorage.setItem(key, JSON.stringify(val)); 
+  }
+};
+
+// Unified Database Interface
+const DB = {
+  useFirebase: false,
+  
+  async init() {
+    try {
+      this.useFirebase = await FirebaseDB.init();
+      return this.useFirebase;
+    } catch (error) {
+      console.log('Using localStorage fallback');
+      this.useFirebase = false;
+      return false;
+    }
+  },
+
+  async load(key, fallback) {
+    if (this.useFirebase) {
+      try {
+        switch(key) {
+          case 'settings': return await FirebaseDB.getSettings();
+          case 'customers': return await FirebaseDB.getCustomers();
+          case 'invoices': return await FirebaseDB.getInvoices();
+          default: return fallback;
+        }
+      } catch (error) {
+        console.error('Firebase error:', error);
+        return LocalDB.load(key, fallback);
+      }
+    } else {
+      return LocalDB.load(key, fallback);
+    }
+  },
+
+  async save(key, val) {
+    if (this.useFirebase) {
+      try {
+        switch(key) {
+          case 'settings': await FirebaseDB.saveSettings(val); break;
+          case 'customers': await FirebaseDB.saveCustomer(val); break;
+          case 'invoices': await FirebaseDB.saveInvoice(val); break;
+          default: LocalDB.save(key, val);
+        }
+      } catch (error) {
+        console.error('Firebase error:', error);
+        LocalDB.save(key, val);
+      }
+    } else {
+      LocalDB.save(key, val);
+    }
+  },
+
+  async getExpenses(period) {
+    if (this.useFirebase) {
+      try {
+        return await FirebaseDB.getExpenses(period);
+      } catch (error) {
+        console.error('Firebase error:', error);
+        return LocalDB.load('expenses', {})[period] || [];
+      }
+    } else {
+      return LocalDB.load('expenses', {})[period] || [];
+    }
+  }
+};
+
+// ------- State -------
+let settings = {};
+let customers = [];
+let invoices = [];
+let expenses = {}; // by 'YYYY-MM'
+let nextInvoiceNumber = 1; // رقم الإيصال التالي
+let isInitialized = false;
+
+// ------- Initialize App -------
+async function initializeApp() {
+  try {
+    console.log('Initializing app...');
+    
+    // Initialize database
+    const useFirebase = await DB.init();
+    console.log('Database initialized:', useFirebase ? 'Firebase' : 'LocalStorage');
+    
+    // Load data
+    settings = await DB.load('settings', { 
+      title: 'نظام إدارة اشتراكات الكهرباء', 
+      subscriptionName: '', 
+      rate: 90000, 
+      priceUSD: 0.25, 
+      priceLBP: 22500, 
+      adminPIN: '' 
+    });
+    customers = await DB.load('customers', []);
+    invoices = await DB.load('invoices', []);
+    // remove duplicates on startup
+    invoices = dedupeInvoices(invoices);
+    
+    // Load expenses for current month
+    const currentMonth = new Date().toISOString().slice(0,7);
+    const currentExpenses = await DB.getExpenses(currentMonth);
+    expenses[currentMonth] = currentExpenses;
+    
+    // Initialize UI
+    renderSettings();
+    renderCustomers();
+    renderHistory();
+    initDefaults();
+    
+    isInitialized = true;
+    console.log('App initialized successfully');
+    
+  } catch (error) {
+    console.error('Initialization error:', error);
+    alert('خطأ في تهيئة التطبيق: ' + error.message);
+  }
+}
+
+// Initialize when page loads
+document.addEventListener('DOMContentLoaded', initializeApp);
+
+// ------- UI Helpers -------
+function qs(s){return document.querySelector(s)}
+function qsa(s){return Array.from(document.querySelectorAll(s))}
+function fmt(n){ return Number(n||0).toLocaleString('ar-LB', {maximumFractionDigits:3}) }
+function monthKey(d){ const dt=new Date(d); return dt.toISOString().slice(0,7); }
+
+
+// ------- Tabs -------
+qsa('.tab-btn').forEach(b=>b.addEventListener('click',async ()=>{
+  qsa('.tab-btn').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');
+  qsa('.tab').forEach(s=>s.style.display='none');
+  qs('#'+b.dataset.tab).style.display='block';
+  // if switching to History tab, reload invoices from server to avoid stale cache
+  try{
+    if (b.dataset.tab === 'history') {
+      await reloadInvoices();
+    }
+  }catch(e){ console.error('Error reloading invoices on tab switch', e); }
+}));
+
+// reload invoices from DB (Firebase or Local) and re-render history
+async function reloadInvoices(){
+  try{
+    if (DB.useFirebase){
+      console.log('Reloading invoices from Firebase...');
+      invoices = await DB.load('invoices', []);
+      console.log('Reloaded invoices count=', invoices.length);
+    } else {
+      invoices = await DB.load('invoices', []);
+    }
+    // dedupe by id (keep last occurrence)
+    invoices = dedupeInvoices(invoices);
+    renderHistory();
+  }catch(e){ console.error('reloadInvoices failed', e); }
+}
+
+// remove duplicates by invoice id, keep the last (most recent) entry
+function dedupeInvoices(list){
+  const byId = new Map();
+  (list||[]).forEach(item=>{
+    if (!item || !item.id) return;
+    // overwrite so last occurrence remains
+    byId.set(String(item.id), item);
+  });
+  return Array.from(byId.values());
+}
+
+// normalize invoice totals: prefer explicit stored numeric fields, try variants, and ensure types
+function normalizeInvoiceTotals(inv){
+  // possible fields stored differently in older data
+  const usdFields = ['total_usd','totalUsd','totalUSD','totalusd'];
+  const lbpFields = ['total_lbp','totalLbp','totalLBP','totallbp'];
+
+  let usd = null;
+  let lbp = null;
+
+  usdFields.forEach(f=>{ if(usd==null && inv[f]!=null) usd = Number(inv[f]); });
+  lbpFields.forEach(f=>{ if(lbp==null && inv[f]!=null) lbp = Number(inv[f]); });
+
+  // If usd is missing but lbp present and rate is available, derive usd
+  if((usd==null || Number.isNaN(usd)) && lbp!=null){
+    const rate = Number(inv.exchangeRateUsed || inv.exchangeRate || settings.rate || 90000);
+    if (rate) usd = +(lbp / rate).toFixed(2);
+  }
+
+  // If lbp is missing but usd present, derive lbp
+  if((lbp==null || Number.isNaN(lbp)) && usd!=null){
+    const rate = Number(inv.exchangeRateUsed || inv.exchangeRate || settings.rate || 90000);
+    if (rate) lbp = Math.round(usd * rate);
+  }
+
+  // final fallbacks
+  if(usd==null || Number.isNaN(usd)) usd = 0;
+  if(lbp==null || Number.isNaN(lbp)) lbp = 0;
+
+  return { usd, lbp };
+}
+
+// ------- Settings Init -------
+function renderSettings(){
+  qs('#appTitle').textContent = settings.title || 'نظام إدارة اشتراكات الكهرباء';
+  qs('#s_subscription').value = settings.subscriptionName || '';
+  qs('#s_rate').value = settings.rate || 90000;
+  qs('#s_price_usd').value = settings.priceUSD || 0;
+  qs('#s_price_lbp').value = settings.priceLBP || 0;
+  qs('#s_admin_pin').value = settings.adminPIN || '';
+}
+
+qs('#btnSaveSettings').onclick = async ()=>{
+  try {
+    settings.subscriptionName = qs('#s_subscription').value.trim();
+    settings.rate = Number(qs('#s_rate').value||90000);
+    settings.priceUSD = Number(qs('#s_price_usd').value||0);
+    settings.priceLBP = Number(qs('#s_price_lbp').value||0);
+    settings.adminPIN = qs('#s_admin_pin').value;
+    await DB.save('settings', settings);
+    alert('تم حفظ الإعدادات');
+  } catch (error) {
+    console.error('Error saving settings:', error);
+    alert('خطأ في حفظ الإعدادات: ' + error.message);
+  }
+};
+
+// ------- Customers -------
+function renderCustomers(){
+  const tbody = qs('#customersTable tbody');
+  const q = (qs('#c_search').value||'').toLowerCase();
+  tbody.innerHTML = '';
+  customers
+    .filter(c => (c.name+c.phone).toLowerCase().includes(q))
+    .forEach((c,i)=>{
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${c.name}</td>
+        <td>${c.phone||''}</td>
+        <td>${c.address||''}</td>
+        <td>${fmt(c.monthly||0)}</td>
+        <td>${fmt(c.price_kwh||0)}</td>
+        <td class="hide-print">
+          <button class="btn ghost" data-act="edit" data-i="${i}">تعديل</button>
+          <button class="btn ghost" data-act="del" data-i="${i}">حذف</button>
+        </td>`;
+      tbody.appendChild(tr);
+    });
+  // dropdown
+  const sel = qs('#inv_customer');
+  sel.innerHTML = `<option value="">— اختر —</option>` + customers.map((c,i)=>`<option value="${i}">${c.name}</option>`).join('');
+}
+
+qs('#btnAddCustomer').onclick = async ()=>{
+  try {
+    const c = {
+      name: qs('#c_name').value.trim(),
+      phone: qs('#c_phone').value.trim(),
+      address: qs('#c_address').value.trim(),
+      monthly: Number(qs('#c_monthly').value||0),
+      price_kwh: Number(qs('#c_price_kwh').value||0),
+    };
+    if(!c.name){ alert('أدخل اسم الزبون'); return; }
+    
+    if (DB.useFirebase) {
+      const customerId = await FirebaseDB.saveCustomer(c);
+      c.id = customerId;
+    } else {
+      c.id = 'C' + Date.now();
+    }
+    
+    customers.push(c);
+    qs('#c_name').value = qs('#c_phone').value = qs('#c_address').value = qs('#c_monthly').value = qs('#c_price_kwh').value = '';
+    
+    if (!DB.useFirebase) {
+      DB.save('customers', customers);
+    }
+    
+    renderCustomers();
+  } catch (error) {
+    console.error('Error adding customer:', error);
+    alert('خطأ في إضافة الزبون: ' + error.message);
+  }
+};
+
+qs('#customersTable').addEventListener('click', async (e)=>{
+  const btn = e.target.closest('button'); if(!btn) return;
+  const i = Number(btn.dataset.i);
+  if(btn.dataset.act==='del'){
+    if(confirm('حذف هذا الزبون؟')){
+      try {
+        const customer = customers[i];
+        if (DB.useFirebase) {
+          await FirebaseDB.deleteCustomer(customer.id);
+        }
+        customers.splice(i,1);
+        if (!DB.useFirebase) {
+          DB.save('customers', customers);
+        }
+        renderCustomers();
+      } catch (error) {
+        console.error('Error deleting customer:', error);
+        alert('خطأ في حذف الزبون: ' + error.message);
+      }
+    }
+  }else if(btn.dataset.act==='edit'){
+    const c = customers[i];
+    qs('#c_name').value=c.name; qs('#c_phone').value=c.phone; qs('#c_address').value=c.address;
+    qs('#c_monthly').value=c.monthly; qs('#c_price_kwh').value=c.price_kwh;
+    customers.splice(i,1); DB.save('customers', customers); renderCustomers();
+  }
+});
+
+qs('#c_search').oninput = renderCustomers;
+
+// ------- Invoice -------
+function latestPrevReading(customerId){
+  const invs = invoices.filter(v=>v.customerId===customerId).sort((a,b)=>b.date.localeCompare(a.date));
+  return invs[0]?.curr || 0;
+}
+
+// البحث في الزبائن
+let selectedCustomerIndex = -1;
+
+qs('#inv_customer_search').oninput = (e)=>{
+  const query = e.target.value.toLowerCase();
+  const dropdown = qs('#customer_dropdown');
+  
+  if(query.length < 1){
+    dropdown.style.display = 'none';
+    return;
+  }
+  
+  const filtered = customers.filter((c,i) => 
+    c.name.toLowerCase().includes(query) || 
+    c.phone?.includes(query)
+  );
+  
+  if(filtered.length === 0){
+    dropdown.style.display = 'none';
+    return;
+  }
+  
+  dropdown.innerHTML = filtered.map((c,i) => 
+    `<div class="customer-option" data-index="${customers.indexOf(c)}" style="padding:8px;cursor:pointer;border-bottom:1px solid #eee">
+      <strong>${c.name}</strong><br>
+      <small style="color:#666">${c.phone || ''} ${c.address ? '• ' + c.address : ''}</small>
+    </div>`
+  ).join('');
+  
+  dropdown.style.display = 'block';
+  
+  // إضافة مستمعي الأحداث للخيارات
+  dropdown.querySelectorAll('.customer-option').forEach(option => {
+    option.onclick = () => {
+      const idx = Number(option.dataset.index);
+      selectCustomer(idx);
+      dropdown.style.display = 'none';
+    };
+  });
+};
+
+function selectCustomer(idx){
+  const c = customers[idx];
+  if(!c) return;
+  
+  selectedCustomerIndex = idx;
+  qs('#inv_customer_search').value = c.name;
+  qs('#inv_customer').value = idx;
+  qs('#inv_prev').value = latestPrevReading(c.id);
+  qs('#inv_price_kwh').value = c.price_kwh || (settings.priceUSD || 0);
+  qs('#inv_monthly').value = c.monthly || 0;
+  computeInvoiceTotals();
+}
+
+// إخفاء القائمة عند النقر خارجها
+document.addEventListener('click', (e) => {
+  if(!e.target.closest('#inv_customer_search') && !e.target.closest('#customer_dropdown')){
+    qs('#customer_dropdown').style.display = 'none';
+  }
+});
+
+
+qs('#inv_customer').onchange = (e)=>{
+  const idx = Number(e.target.value);
+  if(Number.isNaN(idx)) return;
+  selectCustomer(idx);
+};
+
+['#inv_prev','#inv_curr','#inv_price_kwh','#inv_monthly','#inv_extra','#inv_discount','#inv_extra_currency','#inv_base_currency','#inv_date']
+  .forEach(id => qs(id).addEventListener('input', computeInvoiceTotals));
+
+function computeInvoiceTotals(){
+  const usage = Math.max(0, Number(qs('#inv_curr').value||0) - Number(qs('#inv_prev').value||0));
+  qs('#inv_usage').value = usage;
+  const price = Number(qs('#inv_price_kwh').value||0);
+  const monthly = Number(qs('#inv_monthly').value||0);
+  const extra = Number(qs('#inv_extra').value||0);
+  const extraCur = qs('#inv_extra_currency').value;
+  const discount = Number(qs('#inv_discount').value||0);
+  const rate = Number(settings.rate||90000);
+
+  // الحساب الجديد: (العداد الحالي - العداد السابق) × سعر الكيلو + الاشتراك الشهري + الدفعات الإضافية
+  let consumptionValue = price * usage;
+  let baseUSD = consumptionValue + monthly;
+  let extraUSD = extraCur==='USD' ? extra : (extra / rate);
+  let totalUSD = Math.max(0, baseUSD + extraUSD - discount);
+  let totalLBP = Math.round(totalUSD * rate);
+
+  // التأكد من أن القيم صحيحة
+  console.log('Usage:', usage, 'Price:', price, 'Monthly:', monthly, 'Extra:', extra, 'Total USD:', totalUSD);
+
+  qs('#sum_usd').textContent = fmt(totalUSD);
+  qs('#sum_lbp').textContent = fmt(totalLBP);
+  renderReceiptPreview();
+}
+
+function renderReceiptPreview(){
+  const idx = selectedCustomerIndex >= 0 ? selectedCustomerIndex : Number(qs('#inv_customer').value);
+  const c = customers[idx];
+  const usage = Number(qs('#inv_usage').value||0);
+  const price = Number(qs('#inv_price_kwh').value||0);
+  const monthly = Number(qs('#inv_monthly').value||0);
+  const extra = Number(qs('#inv_extra').value||0);
+  const extraCur = qs('#inv_extra_currency').value;
+  const note = qs('#inv_extra_note').value||'';
+  const discount = Number(qs('#inv_discount').value||0);
+  const date = qs('#inv_date').value || new Date().toISOString().slice(0,10);
+  const baseCur = qs('#inv_base_currency').value;
+  const rate = Number(settings.rate||90000);
+  
+  // حساب المجموع مباشرة بدلاً من قراءته من الصفحة
+  let consumptionValue = price * usage;
+  let baseUSD = consumptionValue + monthly;
+  let extraUSD = extraCur==='USD' ? extra : (extra / rate);
+  let totalUSD = Math.max(0, baseUSD + extraUSD - discount);
+  let totalLBP = Math.round(totalUSD * rate);
+
+  const prev = Number(qs('#inv_prev').value||0);
+  const curr = Number(qs('#inv_curr').value||0);
+
+  const subscriptionTitle = settings.subscriptionName || 'اشتراك الكهرباء';
+  const invoiceNumber = 'R' + nextInvoiceNumber.toString().padStart(6, '0');
+
+  // format values for display according to requirements
+  const formattedPrice = Number(price).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+  const formattedMonthly = Number(monthly).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+  const formattedTotalUSD = Number(totalUSD).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+  const formattedTotalLBP = Number(totalLBP).toLocaleString('en-US');
+
+  const html = `
+  <!-- Header -->
+  <div style="text-align:center;margin-bottom:12px;border-bottom:2px solid #333;padding-bottom:8px">
+    <div style="font-weight:800;font-size:16px;margin-bottom:4px">${subscriptionTitle}</div>
+    <div style="font-size:11px;color:#666">إيصال سداد</div>
+    <div style="font-size:10px;color:#888;margin-top:2px">${date} • رقم: ${invoiceNumber}</div>
+  </div>
+
+  <!-- Customer Info -->
+  <div style="margin-bottom:12px;padding:8px;background:#f8f9fa;border-radius:4px">
+    <div style="font-weight:600;margin-bottom:4px">معلومات الزبون:</div>
+    <div style="font-size:11px;margin-bottom:2px"><strong>الاسم:</strong> ${c?c.name:'—'}</div>
+    ${c?.phone?`<div style="font-size:11px;margin-bottom:2px"><strong>الهاتف:</strong> ${c.phone}</div>`:''}
+    ${c?.address?`<div style="font-size:11px"><strong>العنوان:</strong> ${c.address}</div>`:''}
+  </div>
+
+  <!-- First row: three boxes -->
+  <div style="display:flex;gap:8px;justify-content:space-between;margin-bottom:12px">
+    <div style="flex:1;text-align:center;padding:6px;border:1px solid #ddd;border-radius:6px">
+      <div style="font-size:12px;color:#333;margin-bottom:4px">عداد سابق</div>
+      <div style="font-size:14px;font-weight:700;direction:ltr" lang="en">${Number(prev).toLocaleString('en-US')}</div>
+    </div>
+    <div style="flex:1;text-align:center;padding:6px;border:1px solid #ddd;border-radius:6px">
+      <div style="font-size:12px;color:#333;margin-bottom:4px">عداد حالي</div>
+      <div style="font-size:14px;font-weight:700;direction:ltr" lang="en">${Number(curr).toLocaleString('en-US')}</div>
+    </div>
+    <div style="flex:1;text-align:center;padding:6px;border:1px solid #ddd;border-radius:6px">
+      <div style="font-size:12px;color:#333;margin-bottom:4px">الاستهلاك (ك.و.س)</div>
+      <div style="font-size:14px;font-weight:700;direction:ltr" lang="en">${Number(usage).toLocaleString('en-US')}</div>
+    </div>
+  </div>
+
+  <!-- Second row: price and monthly (two matching boxes) -->
+  <div style="display:flex;gap:8px;justify-content:space-between;margin-bottom:8px">
+    <div style="flex:1;text-align:center;padding:8px;border:1px solid #ddd;border-radius:6px;margin:0 4px;background:#f8f9fa">
+      <div class="receipt-label">سعر الكيلو</div>
+      <div class="receipt-value" lang="en">${formattedPrice} USD</div>
+    </div>
+    <div style="flex:1;text-align:center;padding:8px;border:1px solid #ddd;border-radius:6px;margin:0 4px;background:#f8f9fa">
+      <div class="receipt-label">المقطوعة</div>
+      <div class="receipt-value" lang="en">${formattedMonthly} USD</div>
+    </div>
+  </div>
+
+  <!-- Third row: additional fees and discount (two matching boxes) -->
+    <div style="display:flex;gap:8px;justify-content:space-between;margin-bottom:8px">
+    <div style="flex:1;text-align:center;padding:8px;border:1px solid #ddd;border-radius:6px;margin:0 4px;background:#f8f9fa">
+      <div class="receipt-label">دفعات إضافية</div>
+      <div class="receipt-value" lang="en">${Number(extra||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})} USD</div>
+      ${ note ? `<div style="font-size:11px;color:#444;margin-top:4px">ملاحظة: ${note}</div>` : '' }
+    </div>
+    <div style="flex:1;text-align:center;padding:8px;border:1px solid #ddd;border-radius:6px;margin:0 4px;background:#f8f9fa">
+      <div class="receipt-label">خصم</div>
+      <div class="receipt-value" lang="en">${Number(discount||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})} USD</div>
+    </div>
+  </div>
+
+  <!-- Third row: totals -->
+  <div style="text-align:center;margin-bottom:12px;font-size:14px;font-weight:700">
+    الإجمالي: <span style="direction:ltr" lang="en">LBP ${formattedTotalLBP}</span>  / <span style="direction:ltr" lang="en">USD ${formattedTotalUSD}</span>
+  </div>
+
+  <!-- Footer -->
+  <div style="text-align:center;margin-top:12px;padding:8px;background:#fff3cd;border:1px solid #ffeaa7;border-radius:4px;font-size:10px;color:#856404;line-height:1.4">
+    الرجاء عدم التأخير في تسديد الاشتراك، حرصًا على استمرارية الخدمة وعدم اضطرارنا لقطع الاشتراك.
+  </div>
+  `;
+  qs('#receipt').innerHTML = html;
+}
+
+qs('#btnPreview').onclick = ()=>{ renderReceiptPreview(); window.scrollTo({top:document.body.scrollHeight, behavior:'smooth'}); };
+
+qs('#btnTestCalc').onclick = ()=>{
+  const usage = Math.max(0, Number(qs('#inv_curr').value||0) - Number(qs('#inv_prev').value||0));
+  const price = Number(qs('#inv_price_kwh').value||0);
+  const monthly = Number(qs('#inv_monthly').value||0);
+  const extra = Number(qs('#inv_extra').value||0);
+  const discount = Number(qs('#inv_discount').value||0);
+  
+  const consumptionValue = price * usage;
+  const total = consumptionValue + monthly + extra - discount;
+  
+  alert(`تفاصيل الحساب:
+الاستهلاك: ${usage} كيلو واط
+سعر الكيلو: ${price}
+قيمة الاستهلاك: ${consumptionValue}
+المقطوعة: ${monthly}
+الدفعات الإضافية: ${extra}
+الخصم: ${discount}
+المجموع: ${total}`);
+};
+
+function printPOS(){
+  // إنشاء نافذة طباعة مخصصة لرول POS
+  const printWindow = window.open('', '_blank', 'width=300,height=600');
+  const receiptContent = document.getElementById('receipt').innerHTML;
+  
+  printWindow.document.write(`
+    <!DOCTYPE html>
+    <html lang="ar" dir="rtl">
+    <head>
+      <meta charset="utf-8">
+      <title>طباعة POS</title>
+      <style>
+        @page { 
+          size: 80mm auto !important; 
+          margin: 1mm !important; 
+        }
+        * { box-sizing: border-box !important; }
+        html, body { 
+          width: 100% !important; 
+          margin: 0 !important; 
+          padding: 0 !important; 
+          max-width: 80mm !important;
+          font-family: Arial, sans-serif !important;
+          font-size: 8px !important;
+          line-height: 1.0 !important;
+        }
+        table { 
+          width: 100% !important; 
+          font-size: 8px !important; 
+          border-collapse: collapse !important; 
+          max-width: 80mm !important;
+        }
+        td { 
+          padding: 0.5px !important; 
+          border-bottom: 1px solid #ccc !important; 
+          font-size: 8px !important;
+        }
+        .total { font-weight: bold !important; }
+        div { margin: 0 !important; padding: 0 !important; }
+      </style>
+    </head>
+    <body>
+      ${receiptContent}
+    </body>
+    </html>
+  `);
+  
+  printWindow.document.close();
+  setTimeout(() => {
+    printWindow.print();
+    printWindow.close();
+  }, 100);
+}
+
+function printPOSDirect(){
+  // تأكد إن تبويب الفاتورة مفتوح
+  const tabBtn = document.querySelector('.tab-btn[data-tab="invoice"]');
+  if (tabBtn && !tabBtn.classList.contains('active')) tabBtn.click();
+
+  // أعِد توليد المعاينة إذا لزم
+  if (typeof renderReceiptPreview === 'function') renderReceiptPreview();
+
+  // اطبع
+  setTimeout(() => window.print(), 100);
+}
+
+function printReceipt(){
+  // تأكد إن تبويب الفاتورة مفتوح
+  const tabBtn = document.querySelector('.tab-btn[data-tab="invoice"]');
+  if (tabBtn && !tabBtn.classList.contains('active')) tabBtn.click();
+
+  // أعِد توليد المعاينة إذا لزم
+  if (typeof renderReceiptPreview === 'function') renderReceiptPreview();
+
+  // اطبع
+  setTimeout(() => window.print(), 100);
+}
+
+function testPrintArea(){
+  const printArea = document.getElementById('printArea');
+  const receipt = document.getElementById('receipt');
+  
+  console.log('Print Area:', printArea);
+  console.log('Receipt:', receipt);
+  console.log('Receipt HTML:', receipt.innerHTML);
+  console.log('Receipt Text:', receipt.textContent);
+  
+  alert(`محتوى منطقة الطباعة:
+المنطقة موجودة: ${printArea ? 'نعم' : 'لا'}
+المحتوى موجود: ${receipt ? 'نعم' : 'لا'}
+طول المحتوى: ${receipt ? receipt.innerHTML.length : 0} حرف
+المحتوى: ${receipt ? receipt.textContent.substring(0, 100) + '...' : 'فارغ'}`);
+}
+
+qs('#btnSaveInvoice').onclick = async ()=>{
+  try {
+    const idx = selectedCustomerIndex >= 0 ? selectedCustomerIndex : Number(qs('#inv_customer').value);
+    if(Number.isNaN(idx) || !customers[idx]){ alert('اختر الزبون'); return; }
+    
+    // التحقق من وجود ملاحظة الدفعة الإضافية إذا كانت هناك دفعة إضافية
+    const extra = Number(qs('#inv_extra').value||0);
+    const extraNote = qs('#inv_extra_note').value.trim();
+    if(extra > 0 && !extraNote){
+      alert('يجب إدخال ملاحظة للدفعة الإضافية');
+      qs('#inv_extra_note').focus();
+      return;
+    }
+    
+    const c = customers[idx];
+    const date = qs('#inv_date').value || new Date().toISOString().slice(0,10);
+    const invoiceNumber = 'R' + nextInvoiceNumber.toString().padStart(6, '0');
+    
+    // تحديث رقم الإيصال التالي
+    nextInvoiceNumber++;
+    if (!DB.useFirebase) {
+      DB.save('nextInvoiceNumber', nextInvoiceNumber);
+    }
+    
+    // حساب الإجماليات بشكل صحيح من الحقول الحالية (لا نعتمد على نص العرض)
+    const rate = Number(settings.rate || 90000);
+    const usageCalc = Math.max(0, Number(qs('#inv_curr').value||0) - Number(qs('#inv_prev').value||0));
+    const priceCalc = Number(qs('#inv_price_kwh').value||0);
+    const monthlyCalc = Number(qs('#inv_monthly').value||0);
+    const extraCalc = Number(qs('#inv_extra').value||0);
+    const extraCurCalc = qs('#inv_extra_currency').value;
+    const discountCalc = Number(qs('#inv_discount').value||0);
+
+    const consumptionValueCalc = priceCalc * usageCalc;
+    const baseUSDCalc = consumptionValueCalc + monthlyCalc;
+    const extraUSDCalc = extraCurCalc === 'USD' ? extraCalc : (extraCalc / rate);
+    const total_usd = Math.max(0, baseUSDCalc + extraUSDCalc - discountCalc);
+    const total_lbp = Math.round(total_usd * rate);
+    console.log('Computed totals before save:', { usageCalc, priceCalc, monthlyCalc, extraCalc, discountCalc, rate, total_usd, total_lbp });
+    
+    const usage = Number(qs('#inv_usage').value||0);
+    const period = (date || new Date().toISOString().slice(0,10)).slice(0,7);
+    const issuedAt = (window.firebase && window.firebase.serverTimestamp) ? window.firebase.serverTimestamp() : new Date().toISOString();
+
+    const extrasArr = extra > 0 ? [{ label: extraNote || 'دفعة إضافية', value: extra, currency: qs('#inv_extra_currency').value }] : [];
+
+    const data = {
+      id: invoiceNumber,
+      date,
+      period,
+      issuedAt,
+      customerId: c.id,
+      customerName: c.name,
+      prev: Number(qs('#inv_prev').value||0),
+      curr: Number(qs('#inv_curr').value||0),
+      usage: usage,
+      consumptionKwh: usage, // alias for compatibility
+      price_kwh: Number(qs('#inv_price_kwh').value||0),
+      monthly: Number(qs('#inv_monthly').value||0),
+      extras: extrasArr,
+      extra: extra,
+      extra_currency: qs('#inv_extra_currency').value,
+      extra_note: extraNote,
+      discount: Number(qs('#inv_discount').value||0),
+      pricingMode: qs('#inv_base_currency').value,
+      exchangeRateUsed: rate,
+      total_usd: total_usd,           // ← مهم: رقم فعلي
+      total_lbp: total_lbp,           // ← مهم: رقم فعلي
+      createdBy: (window.currentUser && window.currentUser.uid) || null,
+      invoiceNumber: invoiceNumber
+    };
+    
+    console.log('Saving invoice (payload):', data);
+    if (DB.useFirebase) {
+      await FirebaseDB.saveInvoice(data);
+      // reload invoices from server to ensure the list matches backend
+      try {
+        invoices = await DB.load('invoices', []);
+        console.log('Reloaded invoices after save, count=', invoices.length);
+        invoices = dedupeInvoices(invoices);
+        console.log('After dedupe, invoices count=', invoices.length);
+      } catch (e) {
+        console.error('Failed to reload invoices after save:', e);
+        // fallback: push the local data so UI updates
+        invoices.push(data);
+        invoices = dedupeInvoices(invoices);
+      }
+    } else {
+      // local save (ensure we await DB.load which may be async)
+      let localList = [];
+      try {
+        localList = await DB.load('invoices', []);
+      } catch (e) {
+        console.error('Failed to load local invoices, falling back to LocalDB:', e);
+        localList = LocalDB.load('invoices', []);
+      }
+      if (!Array.isArray(localList)) localList = [];
+      localList.push(data);
+      DB.save('invoices', localList);
+      invoices = dedupeInvoices(localList);
+    }
+
+    // show confirmation before printing
+    alert('تم الحفظ! جارٍ فتح معاينة الطباعة...');
+    console.log('Post-save invoices (in-memory) count=', invoices.length, invoices.map(x=>x.id));
+
+    // reset current reading only
+    qs('#inv_prev').value = data.curr; qs('#inv_curr').value=''; computeInvoiceTotals(); 
+    renderHistory();
+    runReport(); // تحديث التقارير
+
+    // print the saved invoice (after UI updated)
+    setTimeout(()=>{
+      try{ printInvoice(invoiceNumber); }catch(e){ console.error('print after save failed', e); }
+    }, 300);
+  } catch (error) {
+    console.error('Error saving invoice:', error);
+    alert('خطأ في حفظ الإيصال: ' + error.message);
+  }
+};
+
+
+// ------- History -------
+function renderHistory(){
+  const tbody = qs('#historyTable tbody'); 
+  tbody.innerHTML = '';
+  let list = invoices.slice().sort((a,b)=> b.date.localeCompare(a.date));
+
+  const q = (qs('#h_search').value||'').toLowerCase();
+  if(q) list = list.filter(v => (v.customerName+v.id).toLowerCase().includes(q));
+
+  const m = qs('#h_month').value; // YYYY-MM
+  if(m) list = list.filter(v => v.date.startsWith(m));
+
+  list.forEach(v=>{
+    const tr = document.createElement('tr');
+    console.log('renderHistory row:', v.id, v);
+    
+    // حساب الإجماليات إذا لم تكن موجودة (للبيانات القديمة)
+    // prefer stored totals; if missing, compute from components
+    const normalized = normalizeInvoiceTotals(v);
+    let totalUSD = normalized.usd;
+    let totalLBP = normalized.lbp;
+
+    if ((v.total_usd == null && v.totalUsd == null) && (v.total_lbp == null && v.totalLbp == null)) {
+      // حساب من البيانات المتاحة للفواتير القديمة
+      const usage = Number(v.usage || 0);
+      const price = Number(v.price_kwh || 0);
+      const monthly = Number(v.monthly || 0);
+      const extra = Number(v.extra || 0);
+      const discount = Number(v.discount || 0);
+      const rate = Number(settings.rate || 90000);
+      
+      const consumptionValue = price * usage;
+      const extraUSD = v.extra_currency === 'USD' ? extra : (extra / rate);
+      totalUSD = Math.max(0, consumptionValue + monthly + extraUSD - discount);
+      totalLBP = Math.round(totalUSD * rate);
+    }
+    
+    tr.innerHTML = `
+      <td>${v.id}</td>
+      <td>${v.date}</td>
+      <td>${v.customerName}</td>
+      <td style="text-align:left">${Number(v.usage||0).toLocaleString('en-US')}</td>
+      <td style="text-align:left">${totalUSD.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})} USD</td>
+      <td style="text-align:left">${totalLBP.toLocaleString('en-US')} LBP</td>
+      <td class="hide-print"><button class="btn ghost" onclick="printInvoice('${v.id}')">طباعة</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+// print a saved invoice by id using same template and CSS
+async function printInvoice(invoiceId){
+  try {
+    console.log('printInvoice called for', invoiceId);
+    const inMemory = invoices.find(x=>String(x.id)===String(invoiceId));
+    console.log('in-memory invoice (from invoices array):', inMemory);
+    let inv = null;
+    if (DB.useFirebase) {
+      inv = await FirebaseDB.getInvoice(invoiceId);
+      console.log('fetched invoice from Firebase:', inv);
+    } else {
+      inv = inMemory;
+    }
+    if (!inv) {
+      console.warn('Invoice not found in DB or memory for id', invoiceId);
+    }
+    if(!inv){ alert('تعذّر فتح الوصل للطباعة'); return; }
+
+    // Use stored values directly (do not re-run pricing logic)
+    const cName = inv.customerName || '';
+    const prev = Number(inv.prev||0);
+    const curr = Number(inv.curr||0);
+    const usage = Number(inv.usage || inv.consumptionKwh || 0);
+    // price may be stored in different fields; prefer explicit per-currency fields
+    const priceUsd = inv.pricePerKwhUsd ?? inv.price_kwh ?? null;
+    const priceLbp = inv.pricePerKwhLbp ?? null;
+    const monthly = Number((inv.fixedFeeValue != null ? inv.fixedFeeValue : (inv.monthly != null ? inv.monthly : 0)));
+    const extrasArr = Array.isArray(inv.extras) ? inv.extras : (inv.extra ? [{ label: inv.extra_note || 'دفعة إضافية', value: inv.extra, currency: inv.extra_currency || 'USD'}] : []);
+    const extraTotal = extrasArr.reduce((s,e)=> s + (Number(e.value||0)), 0);
+    const discount = Number(inv.discount||0);
+    const rate = Number(inv.exchangeRateUsed || inv.exchangeRate || settings.rate || 90000);
+
+    const totalUSD = inv.total_usd != null ? Number(inv.total_usd) : (inv.totalUsd != null ? Number(inv.totalUsd) : null);
+    const totalLBP = inv.total_lbp != null ? Number(inv.total_lbp) : (inv.totalLbp != null ? Number(inv.totalLbp) : null);
+
+    // Prepare display values (prefer stored exact values, fallback to formatted numbers)
+    const displayPrice = priceUsd != null ? Number(priceUsd) : (priceLbp != null ? Number(priceLbp) : 0);
+    const displayPriceLabel = priceUsd != null ? `${Number(displayPrice).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})} USD` : `${Number(displayPrice).toLocaleString('en-US')} LBP`;
+
+    const formattedTotalUSD = totalUSD != null ? Number(totalUSD).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) : '—';
+    const formattedTotalLBP = totalLBP != null ? Number(totalLBP).toLocaleString('en-US') : '—';
+
+    const receiptHtml = `
+    <div style="text-align:center;margin-bottom:12px;border-bottom:2px solid #333;padding-bottom:8px">
+      <div style="font-weight:800;font-size:16px;margin-bottom:4px">${settings.subscriptionName||'اشتراك الكهرباء'}</div>
+      <div style="font-size:11px;color:#666">إيصال سداد</div>
+      <div style="font-size:10px;color:#888;margin-top:2px">${inv.date} • رقم: ${inv.id}</div>
+    </div>
+    <div style="margin-bottom:12px;padding:8px;background:#f8f9fa;border-radius:4px">
+      <div style="font-weight:600;margin-bottom:4px">معلومات الزبون:</div>
+      <div style="font-size:11px;margin-bottom:2px"><strong>الاسم:</strong> ${cName||'—'}</div>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:space-between;margin-bottom:8px">
+      <div style="flex:1;text-align:center;padding:8px;border:1px solid #ddd;border-radius:6px;margin:0 4px;background:#f8f9fa">
+        <div style="font-size:12px;color:#333;margin-bottom:4px">عداد سابق</div>
+        <div style="font-size:14px;font-weight:700;direction:ltr" lang="en">${Number(prev).toLocaleString('en-US')}</div>
+      </div>
+      <div style="flex:1;text-align:center;padding:8px;border:1px solid #ddd;border-radius:6px;margin:0 4px;background:#f8f9fa">
+        <div style="font-size:12px;color:#333;margin-bottom:4px">عداد حالي</div>
+        <div style="font-size:14px;font-weight:700;direction:ltr" lang="en">${Number(curr).toLocaleString('en-US')}</div>
+      </div>
+      <div style="flex:1;text-align:center;padding:8px;border:1px solid #ddd;border-radius:6px;margin:0 4px;background:#f8f9fa">
+        <div style="font-size:12px;color:#333;margin-bottom:4px">الاستهلاك (ك.و.س)</div>
+        <div style="font-size:14px;font-weight:700;direction:ltr" lang="en">${Number(usage).toLocaleString('en-US')}</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:space-between;margin-bottom:8px">
+      <div style="flex:1;text-align:center;padding:8px;border:1px solid #ddd;border-radius:6px;margin:0 4px;background:#f8f9fa">
+        <div style="font-size:12px;color:#333;margin-bottom:4px">سعر الكيلو</div>
+        <div class="receipt-value" lang="en">${displayPriceLabel}</div>
+      </div>
+      <div style="flex:1;text-align:center;padding:8px;border:1px solid #ddd;border-radius:6px;margin:0 4px;background:#f8f9fa">
+        <div style="font-size:12px;color:#333;margin-bottom:4px">المقطوعة</div>
+        <div class="receipt-value" lang="en">${Number(monthly).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})} ${inv.pricingMode||inv.base_currency||'USD'}</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:space-between;margin-bottom:8px">
+      <div style="flex:1;text-align:center;padding:8px;border:1px solid #ddd;border-radius:6px;margin:0 4px;background:#f8f9fa">
+        <div style="font-size:12px;color:#333;margin-bottom:4px">دفعات إضافية</div>
+        <div class="receipt-value" lang="en">${Number(extraTotal||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})} ${extrasArr[0]?.currency || inv.extra_currency || 'USD'}</div>
+        ${ extrasArr.length>0 ? `<div style="font-size:11px;color:#444;margin-top:4px">ملاحظة: ${extrasArr[0].label||''}</div>` : '' }
+      </div>
+      <div style="flex:1;text-align:center;padding:8px;border:1px solid #ddd;border-radius:6px;margin:0 4px;background:#f8f9fa">
+        <div style="font-size:12px;color:#333;margin-bottom:4px">خصم</div>
+        <div class="receipt-value" lang="en">${Number(discount||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})} ${inv.pricingMode||inv.base_currency||'USD'}</div>
+      </div>
+    </div>
+    <div style="text-align:center;margin-bottom:12px;font-size:14px;font-weight:700;color:#000">
+      الإجمالي: <span style="direction:ltr" lang="en">LBP ${formattedTotalLBP}</span>  / <span style="direction:ltr" lang="en">USD ${formattedTotalUSD}</span>
+    </div>
+  `;
+
+    // open print window
+    const printWindow = window.open('', '_blank', 'width=300,height=600');
+    printWindow.document.write(`<!doctype html>
+      <html lang="ar" dir="rtl">
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=72mm, initial-scale=1">
+        <title>طباعة إيصال</title>
+        <style>
+          @page { size: 80mm auto; margin: 3mm; }
+          html,body{box-sizing:border-box;margin:0;padding:0;background:#fff;color:#000}
+          body{box-sizing:border-box;margin:0;padding:0;background:#fff;color:#000;display:flex;justify-content:flex-end;align-items:flex-start}
+          .print-wrapper{width:72mm;padding:4mm;margin-top:6mm;margin-right:6mm;font-family:Arial,Helvetica,sans-serif;font-size:11px;line-height:1.2}
+          .receipt-label{font-weight:700;font-size:12px;color:#333;margin-bottom:4px}
+          .receipt-value{font-family:'Courier New',monospace;font-weight:800;direction:ltr;text-align:left}
+          .box{border:1px solid #ddd;border-radius:6px;padding:8px;margin:4px 0;background:#f8f9fa}
+          .row{display:flex;gap:6px}
+          .col{flex:1;text-align:center}
+          .center{text-align:center}
+          .total{font-weight:900;font-size:14px;margin-top:6px}
+        </style>
+      </head>
+      <body>
+        <div class="print-wrapper">${receiptHtml}</div>
+      </body>
+      </html>`);
+    printWindow.document.close();
+    // wait for the new window to finish loading before calling print
+    try{
+      printWindow.addEventListener('load', function(){
+        try{
+          printWindow.focus();
+          printWindow.print();
+          printWindow.close();
+        }catch(e){
+          setTimeout(()=>{ try{ printWindow.print(); printWindow.close(); }catch(_){ } }, 300);
+        }
+      }, { once: true });
+    }catch(e){
+      setTimeout(()=>{ try{ printWindow.focus(); printWindow.print(); printWindow.close(); }catch(_){ } }, 400);
+    }
+  } catch (err) {
+    console.error('printInvoice error:', err);
+    alert('تعذّر فتح الوصل للطباعة: ' + (err.message || err));
+  }
+}
+renderHistory();
+qs('#h_search').oninput = renderHistory;
+qs('#h_month').oninput = renderHistory;
+
+// ------- Reports & Expenses -------
+function renderExpensesTable(key){
+  const list = expenses[key]||[];
+  const tbody = qs('#expensesTable tbody'); tbody.innerHTML='';
+  list.forEach((e,i)=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${fmt(e.amount)}</td><td>${e.currency}</td><td>${e.note||''}</td>
+    <td><button class="btn ghost" data-i="${i}" id="delExp">حذف</button></td>`;
+    tbody.appendChild(tr);
+  });
+  // delete handler
+  tbody.querySelectorAll('#delExp').forEach(btn=>btn.onclick = ()=>{
+    const i = Number(btn.dataset.i);
+    list.splice(i,1); expenses[key]=list; DB.save('expenses', expenses); runReport();
+  });
+}
+
+function runReport(){
+  const key = qs('#r_month').value || new Date().toISOString().slice(0,7);
+  const rate = Number(settings.rate || 90000);
+
+  const invs = invoices.filter(v => v.date && v.date.startsWith(key));
+
+  const totalKwh = invs.reduce((s,v)=> s + Number(v.usage||0), 0);
+  
+  // حساب الإجماليات مع التعامل مع البيانات القديمة
+  let totalUSD = 0;
+  let totalLBP = 0;
+  
+  invs.forEach(v => {
+    let vUSD = Number(v.total_usd || 0);
+    let vLBP = Number(v.total_lbp || 0);
+    
+    if (!v.total_usd && !v.total_lbp) {
+      // حساب من البيانات المتاحة للفواتير القديمة
+      const usage = Number(v.usage || 0);
+      const price = Number(v.price_kwh || 0);
+      const monthly = Number(v.monthly || 0);
+      const extra = Number(v.extra || 0);
+      const discount = Number(v.discount || 0);
+      
+      const consumptionValue = price * usage;
+      const extraUSD = v.extra_currency === 'USD' ? extra : (extra / rate);
+      vUSD = Math.max(0, consumptionValue + monthly + extraUSD - discount);
+      vLBP = Math.round(vUSD * rate);
+    }
+    
+    totalUSD += vUSD;
+    totalLBP += vLBP;
+  });
+
+  qs('#rep_kwh').textContent = totalKwh.toLocaleString('ar-LB');
+  qs('#rep_usd').textContent = totalUSD.toLocaleString('ar-LB');
+  qs('#rep_lbp').textContent = totalLBP.toLocaleString('ar-LB');
+
+  // المصاريف كما هي (تتجمع حسب الشهر)
+  const exps = expenses[key] || [];
+  const expUSD = exps.reduce((s,e)=> s + (e.currency==='USD' ? Number(e.amount||0) : Number(e.amount||0)/rate), 0);
+  const expLBP = Math.round(expUSD * rate);
+
+  qs('#rep_exp_usd').textContent = expUSD.toLocaleString('ar-LB');
+  qs('#rep_exp_lbp').textContent = expLBP.toLocaleString('ar-LB');
+
+  const profitUSD = totalUSD - expUSD;
+  qs('#rep_profit').textContent = `${profitUSD.toLocaleString('ar-LB')} USD (~ ${(Math.round(profitUSD*rate)).toLocaleString('ar-LB')} LBP)`;
+
+  renderExpensesTable(key);
+}
+qs('#btnRunReport').onclick = runReport;
+qs('#btnAddExpense').onclick = ()=>{
+  const key = qs('#r_month').value || new Date().toISOString().slice(0,7);
+  const amount = Number(qs('#exp_amount').value||0);
+  if(!amount){ alert('أدخل قيمة المصروف'); return; }
+  const currency = qs('#exp_currency').value;
+  const note = qs('#exp_note').value||'';
+  const list = expenses[key]||[];
+  list.push({amount,currency,note, ts:Date.now()});
+  expenses[key]=list; DB.save('expenses', expenses);
+  qs('#exp_amount').value=''; qs('#exp_note').value='';
+  runReport();
+};
+
+// ------- Defaults -------
+function initDefaults(){
+  // set default dates/months
+  const today = new Date().toISOString().slice(0,10);
+  const ym = today.slice(0,7);
+  qs('#inv_date').value = today;
+  qs('#h_month').value = ym;
+  qs('#r_month').value = ym;
+  if (isInitialized) {
+    computeInvoiceTotals();
+    runReport();
+  }
+}
+
+</script>
+</body>
+</html>
